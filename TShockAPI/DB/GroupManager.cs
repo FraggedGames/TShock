@@ -196,7 +196,7 @@ namespace TShockAPI.DB
 			// Load Permissions from the DB
 			LoadPermisions();
 
-			Group.DefaultGroup = GetGroupByName(TShock.Config.DefaultGuestGroupName);
+			Group.DefaultGroup = GetGroupByName(TShock.Config.Settings.DefaultGuestGroupName);
 		}
 
 		private void AddDefaultGroup(string name, string parent, string permissions)
@@ -271,7 +271,7 @@ namespace TShockAPI.DB
 				group.Parent = parent;
 			}
 
-			string query = (TShock.Config.StorageType.ToLower() == "sqlite")
+			string query = (TShock.Config.Settings.StorageType.ToLower() == "sqlite")
 				? "INSERT OR IGNORE INTO GroupList (GroupName, Parent, Commands, ChatColor) VALUES (@0, @1, @2, @3);"
 				: "INSERT IGNORE INTO GroupList SET GroupName=@0, Parent=@1, Commands=@2, ChatColor=@3";
 			if (database.Query(query, name, parentname, permissions, chatcolor) == 1)
@@ -389,17 +389,20 @@ namespace TShockAPI.DB
 						}
 
 						// Read the config file to prevent the possible loss of any unsaved changes
-						TShock.Config = ConfigFile.Read(FileTools.ConfigPath);
-						if (TShock.Config.DefaultGuestGroupName == oldGroup.Name)
+						TShock.Config.Read(FileTools.ConfigPath, out bool writeConfig);
+						if (TShock.Config.Settings.DefaultGuestGroupName == oldGroup.Name)
 						{
-							TShock.Config.DefaultGuestGroupName = newGroup.Name;
+							TShock.Config.Settings.DefaultGuestGroupName = newGroup.Name;
 							Group.DefaultGroup = newGroup;
 						}
-						if (TShock.Config.DefaultRegistrationGroupName == oldGroup.Name)
+						if (TShock.Config.Settings.DefaultRegistrationGroupName == oldGroup.Name)
 						{
-							TShock.Config.DefaultRegistrationGroupName = newGroup.Name;
+							TShock.Config.Settings.DefaultRegistrationGroupName = newGroup.Name;
 						}
-						TShock.Config.Write(FileTools.ConfigPath);
+						if (writeConfig)
+						{
+							TShock.Config.Write(FileTools.ConfigPath);
+						}
 
 						// We also need to check if any users belong to the old group and automatically apply changes
 						using (var command = db.CreateCommand())

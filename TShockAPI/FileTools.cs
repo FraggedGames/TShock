@@ -16,10 +16,13 @@ You should have received a copy of the GNU General Public License
 along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
+using Newtonsoft.Json;
+using Newtonsoft.Json.Linq;
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
-using TShockAPI.ServerSideCharacters;
+using System.Linq;
 
 namespace TShockAPI
 {
@@ -103,32 +106,38 @@ namespace TShockAPI
 			CreateIfNot(MotdPath, MotdFormat);
 						
 			CreateIfNot(WhitelistPath);
+			bool writeConfig = true; // Default to true if the file doesn't exist
 			if (File.Exists(ConfigPath))
 			{
-				TShock.Config = ConfigFile.Read(ConfigPath);
-				// Add all the missing config properties in the json file
+				TShock.Config.Read(ConfigPath, out writeConfig);
 			}
-			TShock.Config.Write(ConfigPath);
+			if (writeConfig)
+			{
+				// Add all the missing config properties in the json file
+				TShock.Config.Write(ConfigPath);
+			}
 
+			bool writeSSCConfig = true; // Default to true if the file doesn't exist
 			if (File.Exists(ServerSideCharacterConfigPath))
 			{
-				TShock.ServerSideCharacterConfig = ServerSideConfig.Read(ServerSideCharacterConfigPath);
-				// Add all the missing config properties in the json file
+				TShock.ServerSideCharacterConfig.Read(ServerSideCharacterConfigPath, out writeSSCConfig);
 			}
-			else
+			if (writeSSCConfig)
 			{
-				TShock.ServerSideCharacterConfig = new ServerSideConfig
+				// Add all the missing config properties in the json file
+				TShock.ServerSideCharacterConfig = new Configuration.ServerSideConfig
 				{
-					StartingInventory =
+					Settings = { StartingInventory =
 						new List<NetItem>
 						{
 							new NetItem(-15, 1, 0),
 							new NetItem(-13, 1, 0),
 							new NetItem(-16, 1, 0)
 						}
+					}
 				};
+				TShock.ServerSideCharacterConfig.Write(ServerSideCharacterConfigPath);
 			}
-			TShock.ServerSideCharacterConfig.Write(ServerSideCharacterConfigPath);
 		}
 
 		/// <summary>
@@ -138,7 +147,7 @@ namespace TShockAPI
 		/// <returns>true/false</returns>
 		public static bool OnWhitelist(string ip)
 		{
-			if (!TShock.Config.EnableWhitelist)
+			if (!TShock.Config.Settings.EnableWhitelist)
 			{
 				return true;
 			}
@@ -162,6 +171,71 @@ namespace TShockAPI
 				}
 				return true;
 			}
+		}
+
+		/// <summary>
+		/// Looks for a 'Settings' token in the json object. If one is not found, returns a new json object with all tokens of the previous object added
+		/// as children to a root 'Settings' token
+		/// </summary>
+		/// <param name="cfg"></param>
+		/// <param name="requiredUpgrade"></param>
+		/// <returns></returns>
+		internal static JObject AttemptConfigUpgrade(JObject cfg, out bool requiredUpgrade)
+		{
+			requiredUpgrade = false;
+
+			if (cfg.SelectToken("Settings") == null)
+			{
+				JObject newCfg = new JObject
+				{
+					{ "Settings", cfg }
+				};
+				cfg = newCfg;
+				requiredUpgrade = true;
+			}
+
+			return cfg;
+		}
+
+		internal static TSettings LoadConfigAndCheckForChanges<TSettings>(string json, out bool writeConfig) where TSettings : new()
+		{
+			//If an empty file is attempting to be loaded as a config, instead use an empty json object. Otherwise Newtonsoft throws an exception here
+			if (string.IsNullOrWhiteSpace(json))
+			{
+				json = "{}";
+			}
+
+			return LoadConfigAndCheckForChanges<TSettings>(JObject.Parse(json), out writeConfig);
+		}
+
+		/// <summary>
+		/// Parses a JObject into a TSettings object, also emitting a bool indicating if the JObject was incomplete
+		/// </summary>
+		/// <typeparam name="TSettings">The type of the config file object</typeparam>
+		/// <param name="jObject">The json object to parse</param>
+		/// <param name="writeConfig">Whether the config needs to be written to disk again</param>
+		/// <returns>The config object</returns>
+		internal static TSettings LoadConfigAndCheckForChanges<TSettings>(JObject jObject, out bool writeConfig) where TSettings : new()
+		{
+			JObject cfg = AttemptConfigUpgrade(jObject, out bool requiredUpgrade);
+
+			var configFields = new HashSet<string>(typeof(TSettings).GetFields()
+				.Where(field => !field.IsStatic)
+				.Select(field => field.Name));
+
+			var jsonFields = new HashSet<string>(cfg.SelectToken("Settings")
+				.Children()
+				.Select(field => field as JProperty)
+				.Where(field => field != null)
+				.Select(field => field.Name));
+
+			bool missingFields = !configFields.SetEquals(jsonFields);
+
+
+			//If the config file had to be upgraded or the fields in the given TSettings don't match the config, we'll want the config to be rewritten with the correct data
+			writeConfig = requiredUpgrade || missingFields;
+
+			return cfg.SelectToken("Settings").ToObject<TSettings>();
 		}
 	}
 }

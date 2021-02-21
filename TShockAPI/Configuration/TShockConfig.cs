@@ -1,35 +1,16 @@
-﻿/*
-TShock, a server mod for Terraria
-Copyright (C) 2011-2019 Pryaxis & TShock Contributors
-
-This program is free software: you can redistribute it and/or modify
-it under the terms of the GNU General Public License as published by
-the Free Software Foundation, either version 3 of the License, or
-(at your option) any later version.
-
-This program is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-GNU General Public License for more details.
-
-You should have received a copy of the GNU General Public License
-along with this program.  If not, see <http://www.gnu.org/licenses/>.
-*/
-
-using System;
+﻿using Rests;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.IO;
 using System.Linq;
 using System.Text;
-using Newtonsoft.Json;
-using Rests;
 
-namespace TShockAPI
+namespace TShockAPI.Configuration
 {
-	/// <summary>The config file class, which contains the configuration for a server that is serialized into JSON and deserialized on load.</summary>
-	[Obsolete("Use TShockAPI.Configuration.TShockConfig", true)]
-	public class ConfigFile
+	/// <summary>
+	/// Settings used in the TShock configuration file
+	/// </summary>
+	public class TShockSettings
 	{
 
 		#region Server Settings
@@ -64,7 +45,7 @@ namespace TShockAPI
 
 		/// <summary>Whether or not the server should output debug level messages related to system operation.</summary>
 		[Description("Whether or not the server should output debug level messages related to system operation.")]
-		public bool DebugLogs = false;
+		public bool DebugLogs = true;
 
 		/// <summary>Prevents users from being able to login before they finish connecting.</summary>
 		[Description("Prevents users from being able to login before they finish connecting.")]
@@ -353,18 +334,6 @@ namespace TShockAPI
 		[Description("The reason given when banning hardcore players on death.")]
 		public string HardcoreBanReason = "Death results in a ban";
 
-		/// <summary>Enables kicking banned users by matching their IP Address.</summary>
-		[Description("Enables kicking banned users by matching their IP Address.")]
-		public bool EnableIPBans = true;
-
-		/// <summary>Enables kicking banned users by matching their client UUID.</summary>
-		[Description("Enables kicking banned users by matching their client UUID.")]
-		public bool EnableUUIDBans = true;
-
-		/// <summary>Enables kicking banned users by matching their Character Name.</summary>
-		[Description("Enables kicking banned users by matching their Character Name.")]
-		public bool EnableBanOnUsernames;
-
 		/// <summary>If GeoIP is enabled, this will kick users identified as being under a proxy.</summary>
 		[Description("If GeoIP is enabled, this will kick users identified as being under a proxy.")]
 		public bool KickProxyUsers = true;
@@ -604,71 +573,28 @@ namespace TShockAPI
 		public Dictionary<string, SecureRest.TokenData> ApplicationRestTokens = new Dictionary<string, SecureRest.TokenData>();
 
 		#endregion
+	}
 
-
+	/// <summary>
+	/// TShock's configuration file
+	/// </summary>
+	public class TShockConfig : ConfigFile<TShockSettings>
+	{
 		/// <summary>
-		/// Reads a configuration file from a given path
+		/// Upgrades the configuration file from the old format if required, then reads and returns the currently configured <see cref="TShockSettings"/>
 		/// </summary>
-		/// <param name="path">The path to the config file</param>
-		/// <param name="anyChanges"> Whether the config object required an upgrade or had unexpected fields added or missing</param>
-		public static ConfigFile Read(string path, out bool anyChanges)
+		/// <param name="json"></param>
+		/// <param name="incompleteSettings"></param>
+		/// <returns></returns>
+		public override TShockSettings ConvertJson(string json, out bool incompleteSettings)
 		{
-			if (!File.Exists(path))
-			{
-				anyChanges = true;
-				return new ConfigFile();
-			}
-			using (var fs = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read))
-			{
-				return Read(fs, out anyChanges);
-			}
-		}
+			var settings = FileTools.LoadConfigAndCheckForChanges<TShockSettings>(json, out incompleteSettings);
 
-		/// <summary>
-		/// Reads the configuration file from a stream
-		/// </summary>
-		/// <param name="stream">stream</param>
-		/// <param name="anyChanges"> Whether the config object required an upgrade or had unexpected fields added or missing</param>
-		/// <returns>ConfigFile object</returns>
-		public static ConfigFile Read(Stream stream, out bool anyChanges)
-		{
-			using (var sr = new StreamReader(stream))
-			{
-				var cf = FileTools.LoadConfigAndCheckForChanges<ConfigFile>(sr.ReadToEnd(), out anyChanges);
-				ConfigRead?.Invoke(cf);
-				return cf;
-			}
-		}
+			Settings = settings;
+			OnConfigRead?.Invoke(this);
 
-		/// <summary>
-		/// Writes the configuration to a given path
-		/// </summary>
-		/// <param name="path">string path - Location to put the config file</param>
-		public void Write(string path)
-		{
-			using (var fs = new FileStream(path, FileMode.Create, FileAccess.Write, FileShare.Write))
-			{
-				Write(fs);
-			}
+			return settings;
 		}
-
-		/// <summary>
-		/// Writes the configuration to a stream
-		/// </summary>
-		/// <param name="stream">stream</param>
-		public void Write(Stream stream)
-		{
-			var str = JsonConvert.SerializeObject(this, Formatting.Indented);
-			using (var sw = new StreamWriter(stream))
-			{
-				sw.Write(str);
-			}
-		}
-
-		/// <summary>
-		/// On config read hook
-		/// </summary>
-		public static Action<ConfigFile> ConfigRead;
 
 		/// <summary>
 		/// Dumps all configuration options to a text file in Markdown format
@@ -676,7 +602,7 @@ namespace TShockAPI
 		public static void DumpDescriptions()
 		{
 			var sb = new StringBuilder();
-			var defaults = new ConfigFile();
+			var defaults = new TShockSettings();
 
 			foreach (var field in defaults.GetType().GetFields().OrderBy(f => f.Name))
 			{

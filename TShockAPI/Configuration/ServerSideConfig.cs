@@ -24,46 +24,55 @@ using System.Linq;
 using System.Text;
 using Newtonsoft.Json;
 
-namespace TShockAPI.ServerSideCharacters
+namespace TShockAPI.Configuration
 {
-	public class ServerSideConfig
+	/// <summary>
+	/// Settings used to configure server side characters
+	/// </summary>
+	public class SscSettings
 	{
-		[Description("Enable server side characters, This stops the client from saving character data! EXPERIMENTAL!!!!!")]
+		/// <summary>
+		/// Enable server side characters, causing client data to be saved on the server instead of the client.
+		/// </summary>
+		[Description("Enable server side characters, causing client data to be saved on the server instead of the client.")]
 		public bool Enabled = false;
 
+		/// <summary>
+		/// How often SSC should save, in minutes.
+		/// </summary>
 		[Description("How often SSC should save, in minutes.")]
 		public int ServerSideCharacterSave = 5;
 
-		[Description("Time, in milliseconds, to disallow discarding items after logging in when ServerSideInventory is ON.")]
+		/// <summary>
+		/// Time, in milliseconds, to disallow discarding items after logging in when ServerSideCharacters is ON.
+		/// </summary>
+		[Description("Time, in milliseconds, to disallow discarding items after logging in when ServerSideCharacters is ON.")]
 		public int LogonDiscardThreshold = 250;
 
-		[Description("The starting default health for new SSC.")] 
+		/// <summary>
+		/// The starting default health for new players when SSC is enabled.
+		/// </summary>
+		[Description("The starting default health for new players when SSC is enabled.")]
 		public int StartingHealth = 100;
 
-		[Description("The starting default mana for new SSC.")] 
+		/// <summary>
+		/// The starting default mana for new players when SSC is enabled.
+		/// </summary>
+		[Description("The starting default mana for new players when SSC is enabled.")]
 		public int StartingMana = 20;
 
-		[Description("The starting default inventory for new SSC.")] 
+		/// <summary>
+		/// The starting default inventory for new players when SSC is enabled.
+		/// </summary>
+		[Description("The starting default inventory for new players when SSC is enabled.")]
 		public List<NetItem> StartingInventory = new List<NetItem>();
+	}
 
-		public static ServerSideConfig Read(string path)
-		{
-			using (var reader = new StreamReader(path))
-			{
-				string txt = reader.ReadToEnd();
-				var config = JsonConvert.DeserializeObject<ServerSideConfig>(txt);
-				return config;
-			}
-		}
-
-		public void Write(string path)
-		{
-			using (var writer = new StreamWriter(path))
-			{
-				writer.Write(JsonConvert.SerializeObject(this, Formatting.Indented));
-			}
-		}
-
+	/// <summary>
+	/// Configuration for the server side characters system
+	/// </summary>
+	public class ServerSideConfig : ConfigFile<SscSettings>
+	{
 		/// <summary>
 		/// Dumps all configuration options to a text file in Markdown format
 		/// </summary>

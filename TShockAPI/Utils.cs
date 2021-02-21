@@ -27,7 +27,6 @@ using System.Text.RegularExpressions;
 using Terraria;
 using Terraria.ID;
 using Terraria.Utilities;
-using TShockAPI.DB;
 using Microsoft.Xna.Framework;
 using Terraria.Localization;
 using TShockAPI.Localization;
@@ -39,6 +38,31 @@ namespace TShockAPI
 	/// </summary>
 	public class Utils
 	{
+		/// <summary>
+		/// Hex code for a blue pastel color
+		/// </summary>
+		public const string BoldHighlight = "AAAAFF";
+		/// <summary>
+		/// Hex code for a red pastel color
+		/// </summary>
+		public const string RedHighlight = "FFAAAA";
+		/// <summary>
+		/// Hex code for a green pastel color
+		/// </summary>
+		public const string GreenHighlight = "AAFFAA";
+		/// <summary>
+		/// Hex code for a pink pastel color
+		/// </summary>
+		public const string PinkHighlight = "FFAAFF";
+		/// <summary>
+		/// Hex code for a yellow pastel color
+		/// </summary>
+		public const string YellowHighlight = "FFFAAA";
+		/// <summary>
+		/// Hex code for a white highlight
+		/// </summary>
+		public const string WhiteHighlight = "FFFFFF";
+
 		/// <summary>
 		/// The lowest id for a prefix.
 		/// </summary>
@@ -144,7 +168,7 @@ namespace TShockAPI
 			foreach (TSPlayer player in TShock.Players)
 			{
 				if (player != null && player != excludedPlayer && player.Active && player.HasPermission(Permissions.logs) &&
-						player.DisplayLogs && TShock.Config.DisableSpewLogs == false)
+						player.DisplayLogs && TShock.Config.Settings.DisableSpewLogs == false)
 					player.SendMessage(log, color);
 			}
 		}
@@ -465,7 +489,14 @@ namespace TShockAPI
 			if (save)
 				SaveManager.Instance.SaveWorld();
 
-			TSPlayer.All.Kick(reason, true, true, null, true);
+			foreach (var player in TShock.Players.Where(p => p != null))
+			{
+				if (player.IsLoggedIn)
+				{
+					player.SaveServerCharacter();
+				}
+				player.Disconnect(reason);
+			}
 
 			// Broadcast so console can see we are shutting down as well
 			TShock.Utils.Broadcast(reason, Color.Red);
@@ -483,7 +514,7 @@ namespace TShockAPI
 			TShock.HandleCommandLinePostConfigLoad(Environment.GetCommandLineArgs());
 			TShock.Groups.LoadPermisions();
 			TShock.Regions.Reload();
-			TShock.Itembans.UpdateItemBans();
+			TShock.ItemBans.DataModel.UpdateItemBans();
 			TShock.ProjectileBans.UpdateBans();
 			TShock.TileBans.UpdateBans();
 		}
@@ -530,6 +561,11 @@ namespace TShockAPI
 		public bool TryParseTime(string str, out int seconds)
 		{
 			seconds = 0;
+
+			if (string.IsNullOrWhiteSpace(str))
+			{
+				return false;
+			}
 
 			var sb = new StringBuilder(3);
 			for (int i = 0; i < str.Length; i++)
@@ -829,9 +865,9 @@ namespace TShockAPI
 		{
 			PrepareLangForDump();
 			// Lang.setLang(true);
-			ConfigFile.DumpDescriptions();
+			Configuration.TShockConfig.DumpDescriptions();
 			Permissions.DumpDescriptions();
-			ServerSideCharacters.ServerSideConfig.DumpDescriptions();
+			Configuration.ServerSideConfig.DumpDescriptions();
 			RestManager.DumpDescriptions();
 			DumpBuffs("BuffList.txt");
 			DumpItems("Items-1_0.txt", 1, 235);
@@ -1110,14 +1146,14 @@ namespace TShockAPI
 		{
 			int invasionSize = 0;
 
-			if (TShock.Config.InfiniteInvasion)
+			if (TShock.Config.Settings.InfiniteInvasion)
 			{
 				// Not really an infinite size
 				invasionSize = 20000000;
 			}
 			else
 			{
-				invasionSize = 100 + (TShock.Config.InvasionMultiplier * GetActivePlayerCount());
+				invasionSize = 100 + (TShock.Config.Settings.InvasionMultiplier * GetActivePlayerCount());
 			}
 
 			// Order matters
@@ -1134,7 +1170,7 @@ namespace TShockAPI
 		/// <summary>Verifies that each stack in each chest is valid and not over the max stack count.</summary>
 		internal void FixChestStacks()
 		{
-			if (TShock.Config.IgnoreChestStacksOnLoad)
+			if (TShock.Config.Settings.IgnoreChestStacksOnLoad)
 				return;
 
 			foreach (Chest chest in Main.chest)
@@ -1155,9 +1191,9 @@ namespace TShockAPI
 		internal void SetConsoleTitle(bool empty)
 		{
 			Console.Title = string.Format("{0}{1}/{2} on {3} @ {4}:{5} (TShock for Terraria v{6})",
-					!string.IsNullOrWhiteSpace(TShock.Config.ServerName) ? TShock.Config.ServerName + " - " : "",
+					!string.IsNullOrWhiteSpace(TShock.Config.Settings.ServerName) ? TShock.Config.Settings.ServerName + " - " : "",
 					empty ? 0 : GetActivePlayerCount(),
-					TShock.Config.MaxSlots, Main.worldName, Netplay.ServerIP.ToString(), Netplay.ListenPort, TShock.VersionNum);
+					TShock.Config.Settings.MaxSlots, Main.worldName, Netplay.ServerIP.ToString(), Netplay.ListenPort, TShock.VersionNum);
 		}
 
 		/// <summary>Determines the distance between two vectors.</summary>
@@ -1180,7 +1216,7 @@ namespace TShockAPI
 		{
 			Vector2 tile = new Vector2(x, y);
 			Vector2 spawn = new Vector2(Main.spawnTileX, Main.spawnTileY);
-			return Distance(spawn, tile) <= TShock.Config.SpawnProtectionRadius;
+			return Distance(spawn, tile) <= TShock.Config.Settings.SpawnProtectionRadius;
 		}
 
 		/// <summary>Computes the max styles...</summary>

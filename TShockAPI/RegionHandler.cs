@@ -55,9 +55,12 @@ namespace TShockAPI
 
 		private void OnGemLockToggle(object sender, GetDataHandlers.GemLockToggleEventArgs e)
 		{
-			if (TShock.Config.RegionProtectGemLocks)
+			if (TShock.Config.Settings.RegionProtectGemLocks)
 			{
-				e.Handled = true;
+				if (!_regionManager.CanBuild(e.X, e.Y, e.Player))
+				{
+					e.Handled = true;
+				}
 			}
 		}
 
